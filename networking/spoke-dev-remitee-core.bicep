@@ -23,12 +23,13 @@ param hubVnetResourceId string
   'westeurope'
   'japaneast'
   'southeastasia'
+  'brazilsouth'
 ])
 @description('The spokes\'s regional affinity, must be the same as the hub\'s location. All resources tied to this spoke will also be homed in this region. The network team maintains this approved regional list which is a subset of zones with Availability Zone support.')
 param location string
 
 // A designator that represents a business unit id and application id
-var orgAppId = 'BU0001A0008'
+var orgAppId = 'remitee-core-components'
 var clusterVNetName = 'vnet-spoke-${orgAppId}-00'
 
 /*** EXISTING HUB RESOURCES ***/
@@ -48,12 +49,6 @@ resource hubVirtualNetwork 'Microsoft.Network/virtualNetworks@2021-05-01' existi
 resource hubFirewall 'Microsoft.Network/azureFirewalls@2021-05-01' existing = {
   scope: hubResourceGroup
   name: 'fw-${location}'
-}
-
-// This is the networking log analytics workspace (in the hub)
-resource laHub 'Microsoft.OperationalInsights/workspaces@2021-06-01' existing = {
-  scope: hubResourceGroup
-  name: 'la-hub-${location}'
 }
 
 /*** RESOURCES ***/
@@ -76,6 +71,7 @@ resource routeNextHopToFirewall 'Microsoft.Network/routeTables@2021-05-01' = {
   }
 }
 
+ 
 // Default NSG on the AKS nodepools. Feel free to constrict further.
 resource nsgNodepoolSubnet 'Microsoft.Network/networkSecurityGroups@2021-05-01' = {
   name: 'nsg-${clusterVNetName}-nodepools'
@@ -85,40 +81,12 @@ resource nsgNodepoolSubnet 'Microsoft.Network/networkSecurityGroups@2021-05-01' 
   }
 }
 
-resource nsgNodepoolSubnet_diagnosticsSettings 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
-  scope: nsgNodepoolSubnet
-  name: 'default'
-  properties: {
-    workspaceId: laHub.id
-    logs: [
-      {
-        categoryGroup: 'allLogs'
-        enabled: true
-      }
-    ]
-  }
-}
-
 // Default NSG on the AKS internal load balancer subnet. Feel free to constrict further.
 resource nsgInternalLoadBalancerSubnet 'Microsoft.Network/networkSecurityGroups@2021-05-01' = {
   name: 'nsg-${clusterVNetName}-aksilbs'
   location: location
   properties: {
     securityRules: []
-  }
-}
-
-resource nsgInternalLoadBalancerSubnet_diagnosticsSettings 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
-  scope: nsgInternalLoadBalancerSubnet
-  name: 'default'
-  properties: {
-    workspaceId: laHub.id
-    logs: [
-      {
-        categoryGroup: 'allLogs'
-        enabled: true
-      }
-    ]
   }
 }
 
@@ -202,20 +170,6 @@ resource nsgAppGwSubnet 'Microsoft.Network/networkSecurityGroups@2021-05-01' = {
   }
 }
 
-resource nsgAppGwSubnet_diagnosticsSettings 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
-  scope: nsgAppGwSubnet
-  name: 'default'
-  properties: {
-    workspaceId: laHub.id
-    logs: [
-      {
-        categoryGroup: 'allLogs'
-        enabled: true
-      }
-    ]
-  }
-}
-
 // NSG on the Private Link subnet.
 resource nsgPrivateLinkEndpointsSubnet 'Microsoft.Network/networkSecurityGroups@2021-05-01' = {
   name: 'nsg-${clusterVNetName}-privatelinkendpoints'
@@ -264,20 +218,7 @@ resource nsgPrivateLinkEndpointsSubnet 'Microsoft.Network/networkSecurityGroups@
     ]
   }
 }
-
-resource nsgPrivateLinkEndpointsSubnet_diagnosticsSettings 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
-  scope: nsgPrivateLinkEndpointsSubnet
-  name: 'default'
-  properties: {
-    workspaceId: laHub.id
-    logs: [
-      {
-        categoryGroup: 'allLogs'
-        enabled: true
-      }
-    ]
-  }
-}
+ 
 
 // The spoke virtual network.
 // 65,536 (-reserved) IPs available to the workload, split across two subnets for AKS,
@@ -296,9 +237,6 @@ resource vnetSpoke 'Microsoft.Network/virtualNetworks@2021-05-01' = {
         name: 'snet-clusternodes'
         properties: {
           addressPrefix: '10.240.0.0/22'
-          routeTable: {
-            id: routeNextHopToFirewall.id
-          }
           networkSecurityGroup: {
             id: nsgNodepoolSubnet.id
           }
@@ -310,9 +248,6 @@ resource vnetSpoke 'Microsoft.Network/virtualNetworks@2021-05-01' = {
         name: 'snet-clusteringressservices'
         properties: {
           addressPrefix: '10.240.4.0/28'
-          routeTable: {
-            id: routeNextHopToFirewall.id
-          }
           networkSecurityGroup: {
             id: nsgInternalLoadBalancerSubnet.id
           }
@@ -375,19 +310,7 @@ module peeringHubToSpoke 'virtualNetworkPeering.bicep' = {
   }
 }
 
-resource vnetSpoke_diagnosticSettings 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
-  scope: vnetSpoke
-  name: 'default'
-  properties: {
-    workspaceId: laHub.id
-    metrics: [
-      {
-        category: 'AllMetrics'
-        enabled: true
-      }
-    ]
-  }
-}
+
 
 // Used as primary public entry point for cluster. Expected to be assigned to an Azure Application Gateway.
 // This is a public facing IP, and would be best behind a DDoS Policy (not deployed simply for cost considerations)
@@ -406,26 +329,6 @@ resource pipPrimaryClusterIp 'Microsoft.Network/publicIPAddresses@2021-05-01' = 
     publicIPAllocationMethod: 'Static'
     idleTimeoutInMinutes: 4
     publicIPAddressVersion: 'IPv4'
-  }
-}
-
-resource pipPrimaryClusterIp_diagnosticSetting 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' =  {
-  name: 'default'
-  scope: pipPrimaryClusterIp
-  properties: {
-    workspaceId: laHub.id
-    logs: [
-      {
-        categoryGroup: 'audit'
-        enabled: true
-      }
-    ]
-    metrics: [
-      {
-        category: 'AllMetrics'
-        enabled: true
-      }
-    ]
   }
 }
 

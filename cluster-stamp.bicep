@@ -42,12 +42,13 @@ param clusterAuthorizedIPRanges array = []
   'westeurope'
   'japaneast'
   'southeastasia'
+  'brazilsouth'
 ])
 param location string = 'eastus2'
 param kubernetesVersion string = '1.27.3'
 
 @description('Domain name to use for App Gateway and AKS ingress.')
-param domainName string = 'contoso.com'
+param domainName string = 'remitee-dev.com'
 
 @description('Your cluster will be bootstrapped from this git repo.')
 @minLength(9)
@@ -64,7 +65,7 @@ var clusterName = 'aks-${subRgUniqueString}'
 var agwName = 'apw-${clusterName}'
 
 var aksIngressDomainName = 'aks-ingress.${domainName}'
-var aksBackendDomainName = 'bu0001a0008-00.${aksIngressDomainName}'
+var aksBackendDomainName = 'remitee-core-components-00.${aksIngressDomainName}'
 var isUsingAzureRBACasKubernetesRBAC = (subscription().tenantId == k8sControlPlaneAuthorizationTenantId)
 
 /*** EXISTING TENANT RESOURCES ***/
@@ -185,16 +186,10 @@ resource acr 'Microsoft.ContainerRegistry/registries@2021-12-01-preview' existin
   name: 'acraks${subRgUniqueString}'
 }
 
-// Log Analytics Workspace
-resource la 'Microsoft.OperationalInsights/workspaces@2021-12-01-preview' existing = {
-  scope: resourceGroup()
-  name: 'la-${clusterName}'
-}
-
 // Kubernetes namespace: a0008 -- this doesn't technically exist prior to deployment, but is required as a resource reference later in the template
 // to support Azure RBAC-managed API Server access, scoped to the namespace level.
 #disable-next-line BCP081 // this namespaces child type doesn't have a defined bicep type yet.
-resource nsA0008 'Microsoft.ContainerService/managedClusters/namespaces@2022-01-02-preview' existing = {
+resource nsRemiteeCore 'Microsoft.ContainerService/managedClusters/namespaces@2022-01-02-preview' existing = {
   parent: mc
   name: 'a0008'
 }
@@ -230,734 +225,24 @@ resource targetVirtualNetwork 'Microsoft.Network/virtualNetworks@2022-05-01' exi
 
 /*** RESOURCES ***/
 
-resource alaRgRecommendations 'Microsoft.Insights/activityLogAlerts@2020-10-01' = {
-  name: 'AllAzureAdvisorAlert'
-  location: 'Global'
-  properties: {
-    scopes: [
-      resourceGroup().id
-    ]
-    condition: {
-      allOf: [
-        {
-          field: 'category'
-          equals: 'Recommendation'
-        }
-        {
-          field: 'operationName'
-          equals: 'Microsoft.Advisor/recommendations/available/action'
-        }
-      ]
-    }
-    actions: {
-      actionGroups: []
-    }
-    enabled: true
-    description: 'All azure advisor alerts'
-  }
-}
+ 
+ 
+ 
+ 
 
-// A query pack to hold any custom quries you may want to write to monitor your cluster or workloads
-resource qpBaselineQueryPack 'Microsoft.OperationalInsights/queryPacks@2019-09-01' = {
-  location: location
-  name: 'AKS baseline bundled queries'
-  properties: {}
-}
+ 
 
-// Example query that shows all scraped Prometheus metrics
-resource qPrometheusAll 'Microsoft.OperationalInsights/queryPacks/queries@2019-09-01' = {
-  parent: qpBaselineQueryPack
-  name: guid(resourceGroup().id, 'PrometheusAll', clusterName)
-  properties: {
-    displayName: 'All collected Prometheus information'
-    description: 'This is all collected Prometheus metrics'
-    body: 'InsightsMetrics | where Namespace == "prometheus"'
-    related: {
-      categories: [
-        'container'
-      ]
-    }
-  }
-}
+ 
 
-// Example query that shows the usage of a specific Prometheus metric emitted by Kured
-resource qNodeReboots 'Microsoft.OperationalInsights/queryPacks/queries@2019-09-01' = {
-  parent: qpBaselineQueryPack
-  name: guid(resourceGroup().id, 'KuredNodeReboot', clusterName)
-  properties: {
-    displayName: 'Kubenertes node reboot requested'
-    description: 'Which Kubernetes nodes are flagged for reboot (based on Prometheus metrics).'
-    body: 'InsightsMetrics | where Namespace == "prometheus" and Name == "kured_reboot_required" | where Val > 0'
-    related: {
-      categories: [
-        'container'
-        'management'
-      ]
-    }
-  }
-}
+ 
 
-resource sci 'Microsoft.OperationsManagement/solutions@2015-11-01-preview' = {
-  name: 'ContainerInsights(${la.name})'
-  location: location
-  properties: {
-    containedResources: []
-    referencedResources: []
-    workspaceResourceId: la.id
-  }
-  plan: {
-    name: 'ContainerInsights(${la.name})'
-    product: 'OMSGallery/ContainerInsights'
-    promotionCode: ''
-    publisher: 'Microsoft'
-  }
-}
+ 
 
-resource maHighNodeCPUUtilization 'Microsoft.Insights/metricAlerts@2018-03-01' = {
-  name: 'Node CPU utilization high for ${clusterName} CI-1'
-  location: 'global'
-  properties: {
-    autoMitigate: true
-    scopes: [
-      mc.id
-    ]
-    actions: []
-    criteria: {
-      allOf: [
-        {
-          criterionType: 'StaticThresholdCriterion'
-          dimensions: [
-            {
-              name: 'host'
-              operator: 'Include'
-              values: [
-                '*'
-              ]
-            }
-          ]
-          metricName: 'cpuUsagePercentage'
-          metricNamespace: 'Insights.Container/nodes'
-          name: 'Metric1'
-          operator: 'GreaterThan'
-          threshold: 80
-          timeAggregation: 'Average'
-          skipMetricValidation: true
-        }
-      ]
-      'odata.type': 'Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria'
-    }
-    description: 'Node CPU utilization across the cluster.'
-    enabled: true
-    evaluationFrequency: 'PT1M'
-    severity: 3
-    targetResourceType: 'microsoft.containerservice/managedclusters'
-    windowSize: 'PT5M'
-  }
-  dependsOn: [
-    sci
-  ]
-}
+ 
+ 
 
-resource maHighNodeWorkingSetMemoryUtilization 'Microsoft.Insights/metricAlerts@2018-03-01' = {
-  name: 'Node working set memory utilization high for ${clusterName} CI-2'
-  location: 'global'
-  properties: {
-    autoMitigate: true
-    actions: []
-    criteria: {
-      allOf: [
-        {
-          criterionType: 'StaticThresholdCriterion'
-          dimensions: [
-            {
-              name: 'host'
-              operator: 'Include'
-              values: [
-                '*'
-              ]
-            }
-          ]
-          metricName: 'memoryWorkingSetPercentage'
-          metricNamespace: 'Insights.Container/nodes'
-          name: 'Metric1'
-          operator: 'GreaterThan'
-          threshold: 80
-          timeAggregation: 'Average'
-          skipMetricValidation: true
-        }
-      ]
-      'odata.type': 'Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria'
-    }
-    description: 'Node working set memory utilization across the cluster.'
-    enabled: true
-    evaluationFrequency: 'PT1M'
-    scopes: [
-      mc.id
-    ]
-    severity: 3
-    targetResourceType: 'microsoft.containerservice/managedclusters'
-    windowSize: 'PT5M'
-  }
-  dependsOn: [
-    sci
-  ]
-}
-
-resource maJobsCompletedMoreThan6HoursAgo 'Microsoft.Insights/metricAlerts@2018-03-01' = {
-  name: 'Jobs completed more than 6 hours ago for ${clusterName} CI-11'
-  location: 'global'
-  properties: {
-    autoMitigate: true
-    actions: []
-    criteria: {
-      allOf: [
-        {
-          criterionType: 'StaticThresholdCriterion'
-          dimensions: [
-            {
-              name: 'controllerName'
-              operator: 'Include'
-              values: [
-                '*'
-              ]
-            }
-            {
-              name: 'kubernetes namespace'
-              operator: 'Include'
-              values: [
-                '*'
-              ]
-            }
-          ]
-          metricName: 'completedJobsCount'
-          metricNamespace: 'Insights.Container/pods'
-          name: 'Metric1'
-          operator: 'GreaterThan'
-          threshold: 0
-          timeAggregation: 'Average'
-          skipMetricValidation: true
-        }
-      ]
-      'odata.type': 'Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria'
-    }
-    description: 'This alert monitors completed jobs (more than 6 hours ago).'
-    enabled: true
-    evaluationFrequency: 'PT1M'
-    scopes: [
-      mc.id
-    ]
-    severity: 3
-    targetResourceType: 'microsoft.containerservice/managedclusters'
-    windowSize: 'PT1M'
-  }
-  dependsOn: [
-    sci
-  ]
-}
-
-resource maHighContainerCPUUsage 'Microsoft.Insights/metricAlerts@2018-03-01' = {
-  name: 'Container CPU usage violates the configured threshold for ${clusterName} CI-19'
-  location: 'global'
-  properties: {
-    autoMitigate: true
-    actions: []
-    criteria: {
-      allOf: [
-        {
-          criterionType: 'StaticThresholdCriterion'
-          dimensions: [
-            {
-              name: 'controllerName'
-              operator: 'Include'
-              values: [
-                '*'
-              ]
-            }
-            {
-              name: 'kubernetes namespace'
-              operator: 'Include'
-              values: [
-                '*'
-              ]
-            }
-          ]
-          metricName: 'cpuThresholdViolated'
-          metricNamespace: 'Insights.Container/containers'
-          name: 'Metric1'
-          operator: 'GreaterThan'
-          threshold: 0  // This threshold is defined in the container-azm-ms-agentconfig.yaml file.
-          timeAggregation: 'Average'
-          skipMetricValidation: true
-        }
-      ]
-      'odata.type': 'Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria'
-    }
-    description: 'This alert monitors container CPU usage. It uses the threshold defined in the config map.'
-    enabled: true
-    evaluationFrequency: 'PT1M'
-    scopes: [
-      mc.id
-    ]
-    severity: 3
-    targetResourceType: 'microsoft.containerservice/managedclusters'
-    windowSize: 'PT5M'
-  }
-  dependsOn: [
-    sci
-  ]
-}
-
-resource maHighContainerWorkingSetMemoryUsage 'Microsoft.Insights/metricAlerts@2018-03-01' = {
-  name: 'Container working set memory usage violates the configured threshold for ${clusterName} CI-20'
-  location: 'global'
-  properties: {
-    autoMitigate: true
-    actions: []
-    criteria: {
-      allOf: [
-        {
-          criterionType: 'StaticThresholdCriterion'
-          dimensions: [
-            {
-              name: 'controllerName'
-              operator: 'Include'
-              values: [
-                '*'
-              ]
-            }
-            {
-              name: 'kubernetes namespace'
-              operator: 'Include'
-              values: [
-                '*'
-              ]
-            }
-          ]
-          metricName: 'memoryWorkingSetThresholdViolated'
-          metricNamespace: 'Insights.Container/containers'
-          name: 'Metric1'
-          operator: 'GreaterThan'
-          threshold: 0  // This threshold is defined in the container-azm-ms-agentconfig.yaml file.
-          timeAggregation: 'Average'
-          skipMetricValidation: true
-        }
-      ]
-      'odata.type': 'Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria'
-    }
-    description: 'This alert monitors container working set memory usage. It uses the threshold defined in the config map.'
-    enabled: true
-    evaluationFrequency: 'PT1M'
-    scopes: [
-      mc.id
-    ]
-    severity: 3
-    targetResourceType: 'microsoft.containerservice/managedclusters'
-    windowSize: 'PT5M'
-  }
-  dependsOn: [
-    sci
-  ]
-}
-
-resource maPodsInFailedState 'Microsoft.Insights/metricAlerts@2018-03-01' = {
-  name: 'Pods in failed state for ${clusterName} CI-4'
-  location: 'global'
-  properties: {
-    autoMitigate: true
-    actions: []
-    criteria: {
-      allOf: [
-        {
-          criterionType: 'StaticThresholdCriterion'
-          dimensions: [
-            {
-              name: 'phase'
-              operator: 'Include'
-              values: [
-                'Failed'
-              ]
-            }
-          ]
-          metricName: 'podCount'
-          metricNamespace: 'Insights.Container/pods'
-          name: 'Metric1'
-          operator: 'GreaterThan'
-          threshold: 0
-          timeAggregation: 'Average'
-          skipMetricValidation: true
-        }
-      ]
-      'odata.type': 'Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria'
-    }
-    description: 'Pod status monitoring.'
-    enabled: true
-    evaluationFrequency: 'PT1M'
-    scopes: [
-      mc.id
-    ]
-    severity: 3
-    targetResourceType: 'microsoft.containerservice/managedclusters'
-    windowSize: 'PT5M'
-  }
-  dependsOn: [
-    sci
-  ]
-}
-
-resource maHighDiskUsage 'Microsoft.Insights/metricAlerts@2018-03-01' = {
-  name: 'Disk usage high for ${clusterName} CI-5'
-  location: 'global'
-  properties: {
-    autoMitigate: true
-    actions: []
-    criteria: {
-      allOf: [
-        {
-          criterionType: 'StaticThresholdCriterion'
-          dimensions: [
-            {
-              name: 'host'
-              operator: 'Include'
-              values: [
-                '*'
-              ]
-            }
-            {
-              name: 'device'
-              operator: 'Include'
-              values: [
-                '*'
-              ]
-            }
-          ]
-          metricName: 'DiskUsedPercentage'
-          metricNamespace: 'Insights.Container/nodes'
-          name: 'Metric1'
-          operator: 'GreaterThan'
-          threshold: 80
-          timeAggregation: 'Average'
-          skipMetricValidation: true
-        }
-      ]
-      'odata.type': 'Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria'
-    }
-    description: 'This alert monitors disk usage for all nodes and storage devices.'
-    enabled: true
-    evaluationFrequency: 'PT1M'
-    scopes: [
-      mc.id
-    ]
-    severity: 3
-    targetResourceType: 'microsoft.containerservice/managedclusters'
-    windowSize: 'PT5M'
-  }
-  dependsOn: [
-    sci
-  ]
-}
-
-resource maNodesInNotReadyStatus 'Microsoft.Insights/metricAlerts@2018-03-01' = {
-  name: 'Nodes in not ready status for ${clusterName} CI-3'
-  location: 'global'
-  properties: {
-    autoMitigate: true
-    actions: []
-    criteria: {
-      allOf: [
-        {
-          criterionType: 'StaticThresholdCriterion'
-          dimensions: [
-            {
-              name: 'status'
-              operator: 'Include'
-              values: [
-                'NotReady'
-              ]
-            }
-          ]
-          metricName: 'nodesCount'
-          metricNamespace: 'Insights.Container/nodes'
-          name: 'Metric1'
-          operator: 'GreaterThan'
-          threshold: 0
-          timeAggregation: 'Average'
-          skipMetricValidation: true
-        }
-      ]
-      'odata.type': 'Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria'
-    }
-    description: 'Node status monitoring.'
-    enabled: true
-    evaluationFrequency: 'PT1M'
-    scopes: [
-      mc.id
-    ]
-    severity: 3
-    targetResourceType: 'microsoft.containerservice/managedclusters'
-    windowSize: 'PT5M'
-  }
-  dependsOn: [
-    sci
-  ]
-}
-
-resource maContainersGettingKilledOOM 'Microsoft.Insights/metricAlerts@2018-03-01' = {
-  name: 'Containers getting OOM killed for ${clusterName} CI-6'
-  location: 'global'
-  properties: {
-    autoMitigate: true
-    actions: []
-    criteria: {
-      allOf: [
-        {
-          criterionType: 'StaticThresholdCriterion'
-          dimensions: [
-            {
-              name: 'kubernetes namespace'
-              operator: 'Include'
-              values: [
-                '*'
-              ]
-            }
-            {
-              name: 'controllerName'
-              operator: 'Include'
-              values: [
-                '*'
-              ]
-            }
-          ]
-          metricName: 'oomKilledContainerCount'
-          metricNamespace: 'Insights.Container/pods'
-          name: 'Metric1'
-          operator: 'GreaterThan'
-          threshold: 0
-          timeAggregation: 'Average'
-          skipMetricValidation: true
-        }
-      ]
-      'odata.type': 'Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria'
-    }
-    description: 'This alert monitors number of containers killed due to out of memory (OOM) error.'
-    enabled: true
-    evaluationFrequency: 'PT1M'
-    scopes: [
-      mc.id
-    ]
-    severity: 3
-    targetResourceType: 'microsoft.containerservice/managedclusters'
-    windowSize: 'PT1M'
-  }
-  dependsOn: [
-    sci
-  ]
-}
-
-resource maHighPersistentVolumeUsage 'Microsoft.Insights/metricAlerts@2018-03-01' = {
-  name: 'Persistent volume usage high for ${clusterName} CI-18'
-  location: 'global'
-  properties: {
-    autoMitigate: true
-    actions: []
-    criteria: {
-      allOf: [
-        {
-          criterionType: 'StaticThresholdCriterion'
-          dimensions: [
-            {
-              name: 'podName'
-              operator: 'Include'
-              values: [
-                '*'
-              ]
-            }
-            {
-              name: 'kubernetesNamespace'
-              operator: 'Include'
-              values: [
-                '*'
-              ]
-            }
-          ]
-          metricName: 'pvUsageExceededPercentage'
-          metricNamespace: 'Insights.Container/persistentvolumes'
-          name: 'Metric1'
-          operator: 'GreaterThan'
-          threshold: 80
-          timeAggregation: 'Average'
-          skipMetricValidation: true
-        }
-      ]
-      'odata.type': 'Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria'
-    }
-    description: 'This alert monitors persistent volume utilization.'
-    enabled: false
-    evaluationFrequency: 'PT1M'
-    scopes: [
-      mc.id
-    ]
-    severity: 3
-    targetResourceType: 'microsoft.containerservice/managedclusters'
-    windowSize: 'PT5M'
-  }
-  dependsOn: [
-    sci
-  ]
-}
-
-resource maPodsNotInReadyState 'Microsoft.Insights/metricAlerts@2018-03-01' = {
-  name: 'Pods not in ready state for ${clusterName} CI-8'
-  location: 'global'
-  properties: {
-    autoMitigate: true
-    actions: []
-    criteria: {
-      allOf: [
-        {
-          criterionType: 'StaticThresholdCriterion'
-          dimensions: [
-            {
-              name: 'controllerName'
-              operator: 'Include'
-              values: [
-                '*'
-              ]
-            }
-            {
-              name: 'kubernetes namespace'
-              operator: 'Include'
-              values: [
-                '*'
-              ]
-            }
-          ]
-          metricName: 'PodReadyPercentage'
-          metricNamespace: 'Insights.Container/pods'
-          name: 'Metric1'
-          operator: 'LessThan'
-          threshold: 80
-          timeAggregation: 'Average'
-          skipMetricValidation: true
-        }
-      ]
-      'odata.type': 'Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria'
-    }
-    description: 'This alert monitors for excessive pods not in the ready state.'
-    enabled: true
-    evaluationFrequency: 'PT1M'
-    scopes: [
-      mc.id
-    ]
-    severity: 3
-    targetResourceType: 'microsoft.containerservice/managedclusters'
-    windowSize: 'PT5M'
-  }
-  dependsOn: [
-    sci
-  ]
-}
-
-resource maRestartingContainerCount 'Microsoft.Insights/metricAlerts@2018-03-01' = {
-  name: 'Restarting container count for ${clusterName} CI-7'
-  location: 'global'
-  properties: {
-    autoMitigate: true
-    actions: []
-    criteria: {
-      allOf: [
-        {
-          criterionType: 'StaticThresholdCriterion'
-          dimensions: [
-            {
-              name: 'kubernetes namespace'
-              operator: 'Include'
-              values: [
-                '*'
-              ]
-            }
-            {
-              name: 'controllerName'
-              operator: 'Include'
-              values: [
-                '*'
-              ]
-            }
-          ]
-          metricName: 'restartingContainerCount'
-          metricNamespace: 'Insights.Container/pods'
-          name: 'Metric1'
-          operator: 'GreaterThan'
-          threshold: 0
-          timeAggregation: 'Average'
-          skipMetricValidation: true
-        }
-      ]
-      'odata.type': 'Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria'
-    }
-    description: 'This alert monitors number of containers restarting across the cluster.'
-    enabled: true
-    evaluationFrequency: 'PT1M'
-    scopes: [
-      mc.id
-    ]
-    severity: 3
-    targetResourceType: 'Microsoft.ContainerService/managedClusters'
-    windowSize: 'PT1M'
-  }
-  dependsOn: [
-    sci
-  ]
-}
-
-resource skva 'Microsoft.OperationsManagement/solutions@2015-11-01-preview' = {
-  name: 'KeyVaultAnalytics(${la.name})'
-  location: location
-  properties: {
-    containedResources: []
-    referencedResources: []
-    workspaceResourceId: la.id
-  }
-  plan: {
-    name: 'KeyVaultAnalytics(${la.name})'
-    product: 'OMSGallery/KeyVaultAnalytics'
-    promotionCode: ''
-    publisher: 'Microsoft'
-  }
-}
-
-resource sqrPodFailed 'Microsoft.Insights/scheduledQueryRules@2018-04-16' = {
-  name: 'PodFailedScheduledQuery'
-  location: location
-  properties: {
-    autoMitigate: true
-    displayName: '[${clusterName}] Scheduled Query for Pod Failed Alert'
-    description: 'Alert on pod Failed phase.'
-    enabled: 'true'
-    source: {
-      query: '//https://learn.microsoft.com/azure/azure-monitor/insights/container-insights-alerts \r\n let endDateTime = now(); let startDateTime = ago(1h); let trendBinSize = 1m; let clusterName = "${clusterName}"; KubePodInventory | where TimeGenerated < endDateTime | where TimeGenerated >= startDateTime | where ClusterName == clusterName | distinct ClusterName, TimeGenerated | summarize ClusterSnapshotCount = count() by bin(TimeGenerated, trendBinSize), ClusterName | join hint.strategy=broadcast ( KubePodInventory | where TimeGenerated < endDateTime | where TimeGenerated >= startDateTime | distinct ClusterName, Computer, PodUid, TimeGenerated, PodStatus | summarize TotalCount = count(), PendingCount = sumif(1, PodStatus =~ "Pending"), RunningCount = sumif(1, PodStatus =~ "Running"), SucceededCount = sumif(1, PodStatus =~ "Succeeded"), FailedCount = sumif(1, PodStatus =~ "Failed") by ClusterName, bin(TimeGenerated, trendBinSize) ) on ClusterName, TimeGenerated | extend UnknownCount = TotalCount - PendingCount - RunningCount - SucceededCount - FailedCount | project TimeGenerated, TotalCount = todouble(TotalCount) / ClusterSnapshotCount, PendingCount = todouble(PendingCount) / ClusterSnapshotCount, RunningCount = todouble(RunningCount) / ClusterSnapshotCount, SucceededCount = todouble(SucceededCount) / ClusterSnapshotCount, FailedCount = todouble(FailedCount) / ClusterSnapshotCount, UnknownCount = todouble(UnknownCount) / ClusterSnapshotCount| summarize AggregatedValue = avg(FailedCount) by bin(TimeGenerated, trendBinSize)'
-      dataSourceId: la.id
-      queryType: 'ResultCount'
-    }
-    schedule: {
-      frequencyInMinutes: 5
-      timeWindowInMinutes: 10
-    }
-    action: {
-      'odata.type': 'Microsoft.WindowsAzure.Management.Monitoring.Alerts.Models.Microsoft.AppInsights.Nexus.DataContracts.Resources.ScheduledQueryRules.AlertingAction'
-      severity: '3'
-      trigger: {
-        thresholdOperator: 'GreaterThan'
-        threshold: 3
-        metricTrigger: {
-          thresholdOperator: 'GreaterThan'
-          threshold: 2
-          metricTriggerType: 'Consecutive'
-        }
-      }
-    }
-  }
-}
-
+ 
+ 
 // Resource Group Azure Policy Assignments - Azure Policy for Kubernetes Policies
 
 // Applying the built-in 'Kubernetes cluster pod security restricted standards for Linux-based workloads' initiative at the resource group level.
@@ -1502,26 +787,6 @@ resource kv 'Microsoft.KeyVault/vaults@2021-11-01-preview' = {
   }
 }
 
-resource kv_diagnosticSettings 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
-  scope: kv
-  name: 'default'
-  properties: {
-    workspaceId: la.id
-    logs: [
-      {
-        category: 'AuditEvent'
-        enabled: true
-      }
-    ]
-    metrics: [
-      {
-        category: 'AllMetrics'
-        enabled: true
-      }
-    ]
-  }
-}
-
 // Grant the Azure Application Gateway managed identity with key vault reader role permissions; this allows pulling frontend and backend certificates.
 resource kvMiAppGatewayFrontendSecretsUserRole_roleAssignment 'Microsoft.Authorization/roleAssignments@2020-10-01-preview' = {
   scope: kv
@@ -1633,8 +898,8 @@ resource pdzAksIngress 'Microsoft.Network/privateDnsZones@2020-06-01' = {
   name: aksIngressDomainName
   location: 'global'
 
-  resource aksIngressDomainName_bu0001a0008_00 'A' = {
-    name: 'bu0001a0008-00'
+  resource aksIngressDomainName_remitee-core-components_00 'A' = {
+    name: 'remitee-core-components-00'
     properties: {
       ttl: 3600
       aRecords: [
@@ -1661,8 +926,8 @@ resource mc 'Microsoft.ContainerService/managedClusters@2023-02-02-preview' = {
   name: clusterName
   location: location
   tags: {
-    'Business unit': 'BU0001'
-    'Application identifier': 'a0008'
+    'Business unit': 'Remitee'
+    'Application identifier': 'core-components'
   }
   properties: {
     kubernetesVersion: kubernetesVersion
@@ -1963,7 +1228,7 @@ resource mcAadAdminGroupServiceClusterUserRole_roleAssignment 'Microsoft.Authori
 }
 
 resource maAadA0008ReaderGroupClusterReaderRole_roleAssignment 'Microsoft.Authorization/roleAssignments@2020-10-01-preview' = if (isUsingAzureRBACasKubernetesRBAC && !(empty(a0008NamespaceReaderAadGroupObjectId)) && (!(a0008NamespaceReaderAadGroupObjectId == clusterAdminAadGroupObjectId))) {
-  scope: nsA0008
+  scope: nsRemiteeCore
   name: guid('aad-a0008-reader-group', mc.id, a0008NamespaceReaderAadGroupObjectId)
   properties: {
     roleDefinitionId: clusterReaderRole.id
@@ -1982,37 +1247,7 @@ resource maAadA0008ReaderGroupServiceClusterUserRole_roleAssignment 'Microsoft.A
     principalId: a0008NamespaceReaderAadGroupObjectId
     principalType: 'Group'
   }
-}
-
-resource mc_diagnosticSettings 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
-  scope: mc
-  name: 'default'
-  properties: {
-    workspaceId: la.id
-    logs: [
-      {
-        category: 'cluster-autoscaler'
-        enabled: true
-      }
-      {
-        category: 'kube-controller-manager'
-        enabled: true
-      }
-      {
-        category: 'kube-audit-admin'
-        enabled: true
-      }
-      {
-        category: 'guard'
-        enabled: true
-      }
-      {
-        category: 'kube-scheduler'
-        enabled: false // Only enable while tuning or triaging issues with scheduling. On a normally operating cluster there is minimal value, relative to the log capture cost, to keeping this always enabled.
-      }
-    ]
-  }
-}
+} 
 
 // Ensures that flux add-on (extension) is installed.
 resource mcFlux_extension 'Microsoft.KubernetesConfiguration/extensions@2021-09-01' = {
@@ -2100,26 +1335,6 @@ resource st 'Microsoft.EventGrid/systemTopics@2021-12-01' = {
   }
 }
 
-resource st_diagnosticSettings 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
-  scope: st
-  name: 'default'
-  properties: {
-    workspaceId: la.id
-    logs: [
-      {
-        category: 'DeliveryFailures'
-        enabled: true
-      }
-    ]
-    metrics: [
-      {
-        category: 'AllMetrics'
-        enabled: true
-      }
-    ]
-  }
-}
-
 resource wafPolicy 'Microsoft.Network/ApplicationGatewayWebApplicationFirewallPolicies@2021-05-01' = {
   name: 'waf-${clusterName}'
   location: location
@@ -2192,7 +1407,7 @@ resource agw 'Microsoft.Network/applicationGateways@2021-05-01' = {
         name: 'apw-frontend-ip-configuration'
         properties: {
           publicIPAddress: {
-            id: resourceId(subscription().subscriptionId, targetResourceGroup.name, 'Microsoft.Network/publicIpAddresses', 'pip-BU0001A0008-00')
+            id: resourceId(subscription().subscriptionId, targetResourceGroup.name, 'Microsoft.Network/publicIpAddresses', 'pip-remitee-core-components-00')
           }
         }
       }
