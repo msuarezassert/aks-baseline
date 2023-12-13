@@ -182,7 +182,7 @@ resource keyVaultSecretsUserRole 'Microsoft.Authorization/roleDefinitions@2018-0
 
 // Azure Container Registry
 resource acr 'Microsoft.ContainerRegistry/registries@2021-12-01-preview' existing = {
-  scope: resourceGroup('ACRDEVEUS2')
+  scope: resourceGroup()
   name: 'ACRDEVEUS2'
 }
 
@@ -1113,7 +1113,6 @@ resource mc 'Microsoft.ContainerService/managedClusters@2023-02-02-preview' = {
     tier: 'Standard'
   }
   dependsOn: [
-    sci
 
     ndEnsureClusterIdentityHasRbacToSelfManagedResources
 
