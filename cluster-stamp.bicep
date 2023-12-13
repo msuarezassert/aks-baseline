@@ -48,7 +48,7 @@ param location string = 'eastus2'
 param kubernetesVersion string = '1.27.3'
 
 @description('Domain name to use for App Gateway and AKS ingress.')
-param domainName string = 'remitee-dev.com'
+param domainName string = 'dev-aks.remitee-dev.com'
 
 @description('Your cluster will be bootstrapped from this git repo.')
 @minLength(9)
@@ -65,7 +65,7 @@ var clusterName = 'aks-${subRgUniqueString}'
 var agwName = 'apw-${clusterName}'
 
 var aksIngressDomainName = 'aks-ingress.${domainName}'
-var aksBackendDomainName = 'remitee-core-components-00.${aksIngressDomainName}'
+var aksBackendDomainName = 'bu0001a0008-00.${aksIngressDomainName}'
 var isUsingAzureRBACasKubernetesRBAC = (subscription().tenantId == k8sControlPlaneAuthorizationTenantId)
 
 /*** EXISTING TENANT RESOURCES ***/
@@ -182,16 +182,18 @@ resource keyVaultSecretsUserRole 'Microsoft.Authorization/roleDefinitions@2018-0
 
 // Azure Container Registry
 resource acr 'Microsoft.ContainerRegistry/registries@2021-12-01-preview' existing = {
-  scope: resourceGroup()
+  scope: subscription()
   name: 'ACRDEVEUS2'
 }
+
+ 
 
 // Kubernetes namespace: a0008 -- this doesn't technically exist prior to deployment, but is required as a resource reference later in the template
 // to support Azure RBAC-managed API Server access, scoped to the namespace level.
 #disable-next-line BCP081 // this namespaces child type doesn't have a defined bicep type yet.
-resource nsRemiteeCore 'Microsoft.ContainerService/managedClusters/namespaces@2022-01-02-preview' existing = {
+resource nsA0008 'Microsoft.ContainerService/managedClusters/namespaces@2022-01-02-preview' existing = {
   parent: mc
-  name: 'remiteeCore'
+  name: 'a0008'
 }
 
 /*** EXISTING SPOKE RESOURCES ***/
@@ -223,26 +225,6 @@ resource targetVirtualNetwork 'Microsoft.Network/virtualNetworks@2022-05-01' exi
   }
 }
 
-/*** RESOURCES ***/
-
- 
- 
- 
- 
-
- 
-
- 
-
- 
-
- 
-
- 
- 
-
- 
- 
 // Resource Group Azure Policy Assignments - Azure Policy for Kubernetes Policies
 
 // Applying the built-in 'Kubernetes cluster pod security restricted standards for Linux-based workloads' initiative at the resource group level.
@@ -283,7 +265,7 @@ resource paAKSLinuxRestrictive 'Microsoft.Authorization/policyAssignments@2021-0
           // K8sAzureAllowedUsersGroups
           //  - Traefik, no supplementalGroups, no fsGroup
           //  = aspnetapp-deployment, no supplementalGroups, no fsGroup
-          'remiteeCore'
+          'a0008'
         ]
       }
       effect: {
@@ -735,7 +717,7 @@ resource podmiIngressController 'Microsoft.ManagedIdentity/userAssignedIdentitie
     name: 'ingress-controller'
     properties: {
       issuer: mc.properties.oidcIssuerProfile.issuerURL
-      subject: 'system:serviceaccount:remiteeCore:traefik-ingress-controller'
+      subject: 'system:serviceaccount:a0008:traefik-ingress-controller'
       audiences: [
         'api://AzureADTokenExchange'
       ]
@@ -898,8 +880,8 @@ resource pdzAksIngress 'Microsoft.Network/privateDnsZones@2020-06-01' = {
   name: aksIngressDomainName
   location: 'global'
 
-  resource aksIngressDomainName_remitee-core-components_00 'A' = {
-    name: 'remitee-core-components-00'
+  resource aksIngressDomainName_bu0001a0008_00 'A' = {
+    name: 'bu0001a0008-00'
     properties: {
       ttl: 3600
       aRecords: [
@@ -926,8 +908,8 @@ resource mc 'Microsoft.ContainerService/managedClusters@2023-02-02-preview' = {
   name: clusterName
   location: location
   tags: {
-    'Business unit': 'Remitee'
-    'Application identifier': 'core-components'
+    'Business unit': 'remitee'
+    'Application identifier': 'dev-core'
   }
   properties: {
     kubernetesVersion: kubernetesVersion
@@ -1228,7 +1210,7 @@ resource mcAadAdminGroupServiceClusterUserRole_roleAssignment 'Microsoft.Authori
 }
 
 resource maAadA0008ReaderGroupClusterReaderRole_roleAssignment 'Microsoft.Authorization/roleAssignments@2020-10-01-preview' = if (isUsingAzureRBACasKubernetesRBAC && !(empty(a0008NamespaceReaderAadGroupObjectId)) && (!(a0008NamespaceReaderAadGroupObjectId == clusterAdminAadGroupObjectId))) {
-  scope: nsRemiteeCore
+  scope: nsA0008
   name: guid('aad-a0008-reader-group', mc.id, a0008NamespaceReaderAadGroupObjectId)
   properties: {
     roleDefinitionId: clusterReaderRole.id
@@ -1247,8 +1229,8 @@ resource maAadA0008ReaderGroupServiceClusterUserRole_roleAssignment 'Microsoft.A
     principalId: a0008NamespaceReaderAadGroupObjectId
     principalType: 'Group'
   }
-} 
-
+}
+ 
 // Ensures that flux add-on (extension) is installed.
 resource mcFlux_extension 'Microsoft.KubernetesConfiguration/extensions@2021-09-01' = {
   scope: mc
@@ -1335,7 +1317,7 @@ resource st 'Microsoft.EventGrid/systemTopics@2021-12-01' = {
   }
 }
 
-resource wafPolicy 'Microsoft.Network/ApplicationGatewayWebApplicationFirewallPolicies@2021-05-01' = {
+ resource wafPolicy 'Microsoft.Network/ApplicationGatewayWebApplicationFirewallPolicies@2021-05-01' = {
   name: 'waf-${clusterName}'
   location: location
   properties: {
@@ -1407,7 +1389,7 @@ resource agw 'Microsoft.Network/applicationGateways@2021-05-01' = {
         name: 'apw-frontend-ip-configuration'
         properties: {
           publicIPAddress: {
-            id: resourceId(subscription().subscriptionId, targetResourceGroup.name, 'Microsoft.Network/publicIpAddresses', 'pip-remitee-core-components-00')
+            id: resourceId(subscription().subscriptionId, targetResourceGroup.name, 'Microsoft.Network/publicIpAddresses', 'pip-BU0001A0008-00')
           }
         }
       }
