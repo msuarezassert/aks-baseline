@@ -134,13 +134,13 @@ resource nodeResourceGroup 'Microsoft.Resources/resourceGroups@2021-04-01' exist
 resource acrResourceGroup 'Microsoft.Resources/resourceGroups@2021-04-01' existing = {
   name: 'KubernetsDev'
   scope: subscription()
+  // Azure Container Registry
+  resource acr 'Microsoft.ContainerRegistry/registries@2021-12-01-preview' existing = {
+    name: 'ACRDEVEUS2'
+    scope: resourceGroup()
+  }
 }
 
-// Azure Container Registry
-resource acr 'Microsoft.ContainerRegistry/registries@2021-12-01-preview' existing = {
-  name: 'ACRDEVEUS2'
-  scope: resourceGroup('KubernetsDev')
-}
 
 // Built-in Azure RBAC role that is applied to a cluster to indicate they can be considered a user/group of the cluster, subject to additional RBAC permissions
 resource serviceClusterUserRole 'Microsoft.Authorization/roleDefinitions@2018-01-01-preview' existing = {
