@@ -130,6 +130,12 @@ resource nodeResourceGroup 'Microsoft.Resources/resourceGroups@2021-04-01' exist
   name: 'RG-AKS-DEV-BR-001'
   scope: subscription()
 }
+// Azure Container Registry
+resource acr 'Microsoft.ContainerRegistry/registries@2021-12-01-preview' existing = {
+  name: 'ACRDEVEUS2'
+  scope: subscription()
+  location: 'eastus2'
+}
 
 // Built-in Azure RBAC role that is applied to a cluster to indicate they can be considered a user/group of the cluster, subject to additional RBAC permissions
 resource serviceClusterUserRole 'Microsoft.Authorization/roleDefinitions@2018-01-01-preview' existing = {
@@ -179,14 +185,6 @@ resource keyVaultSecretsUserRole 'Microsoft.Authorization/roleDefinitions@2018-0
 // cluster. Logging sinks, container registries, backup destinations, etc are typical
 // resources that would exist before & after any individual cluster is deployed or is removed
 // from the solution.
-
-// Azure Container Registry
-resource acr 'Microsoft.ContainerRegistry/registries@2021-12-01-preview' existing = {
-  scope: resourceGroup('KubernetsDev')
-  name: 'ACRDEVEUS2'
-  parent: mc
-}
-
  
 
 // Kubernetes namespace: a0008 -- this doesn't technically exist prior to deployment, but is required as a resource reference later in the template
