@@ -182,7 +182,7 @@ resource keyVaultSecretsUserRole 'Microsoft.Authorization/roleDefinitions@2018-0
 
 // Azure Container Registry
 resource acr 'Microsoft.ContainerRegistry/registries@2021-12-01-preview' existing = {
-  scope: subscription()
+  scope: resourceGroup('ACRDEVEUS2')
   name: 'ACRDEVEUS2'
 }
 
@@ -988,12 +988,6 @@ resource mc 'Microsoft.ContainerService/managedClusters@2023-02-02-preview' = {
       httpApplicationRouting: {
         enabled: false
       }
-      omsagent: {
-        enabled: true
-        config: {
-          logAnalyticsWorkspaceResourceId: la.id
-        }
-      }
       aciConnectorLinux: {
         enabled: false
       }
@@ -1096,13 +1090,7 @@ resource mc 'Microsoft.ContainerService/managedClusters@2023-02-02-preview' = {
       nodeRestriction: {
         enabled: true // https://kubernetes.io/docs/reference/access-authn-authz/admission-controllers/#noderestriction
       }
-      customCATrustCertificates: [] // Empty
-      defender: {
-        logAnalyticsWorkspaceResourceId: la.id
-        securityMonitoring: {
-          enabled: true
-        }
-      }
+      customCATrustCertificates: [] // Emptyla.id
     }
     oidcIssuerProfile: {
       enabled: true
@@ -1509,29 +1497,7 @@ resource agw 'Microsoft.Network/applicationGateways@2021-05-01' = {
     kvMiAppGatewayFrontendSecretsUserRole_roleAssignment
   ]
 }
-
-resource agwdiagnosticSettings 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
-  scope: agw
-  name: 'default'
-  properties: {
-    workspaceId: la.id
-    logs: [
-      {
-        category: 'ApplicationGatewayAccessLog'
-        enabled: true
-      }
-      {
-        category: 'ApplicationGatewayPerformanceLog'
-        enabled: true
-      }
-      {
-        category: 'ApplicationGatewayFirewallLog'
-        enabled: true
-      }
-    ]
-  }
-}
-
+ 
 /*** OUTPUTS ***/
 
 output aksClusterName string = clusterName
