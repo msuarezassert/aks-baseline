@@ -187,7 +187,7 @@ resource keyVaultSecretsUserRole 'Microsoft.Authorization/roleDefinitions@2018-0
 
 // Azure Container Registry
 resource acr 'Microsoft.ContainerRegistry/registries@2021-12-01-preview' existing = {
-  scope: acrResourceGroup
+  scope: resourceGroup()
   name: 'ACRDEVEUS2'
 }
 
