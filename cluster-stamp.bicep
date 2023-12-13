@@ -183,7 +183,7 @@ resource keyVaultSecretsUserRole 'Microsoft.Authorization/roleDefinitions@2018-0
 // Azure Container Registry
 resource acr 'Microsoft.ContainerRegistry/registries@2021-12-01-preview' existing = {
   scope: resourceGroup()
-  name: 'acraks${subRgUniqueString}'
+  name: 'ACRDEVEUS2'
 }
 
 // Kubernetes namespace: a0008 -- this doesn't technically exist prior to deployment, but is required as a resource reference later in the template
@@ -191,7 +191,7 @@ resource acr 'Microsoft.ContainerRegistry/registries@2021-12-01-preview' existin
 #disable-next-line BCP081 // this namespaces child type doesn't have a defined bicep type yet.
 resource nsRemiteeCore 'Microsoft.ContainerService/managedClusters/namespaces@2022-01-02-preview' existing = {
   parent: mc
-  name: 'a0008'
+  name: 'remiteeCore'
 }
 
 /*** EXISTING SPOKE RESOURCES ***/
@@ -283,7 +283,7 @@ resource paAKSLinuxRestrictive 'Microsoft.Authorization/policyAssignments@2021-0
           // K8sAzureAllowedUsersGroups
           //  - Traefik, no supplementalGroups, no fsGroup
           //  = aspnetapp-deployment, no supplementalGroups, no fsGroup
-          'a0008'
+          'remiteeCore'
         ]
       }
       effect: {
@@ -735,7 +735,7 @@ resource podmiIngressController 'Microsoft.ManagedIdentity/userAssignedIdentitie
     name: 'ingress-controller'
     properties: {
       issuer: mc.properties.oidcIssuerProfile.issuerURL
-      subject: 'system:serviceaccount:a0008:traefik-ingress-controller'
+      subject: 'system:serviceaccount:remiteeCore:traefik-ingress-controller'
       audiences: [
         'api://AzureADTokenExchange'
       ]
