@@ -1153,7 +1153,7 @@ resource mc 'Microsoft.ContainerService/managedClusters@2023-02-02-preview' = {
 
 
 module nestedAcrKubeletAcrPullRole_roleAssignment 'nested_AcrKubeletAcrPullRole_roleAssignment.bicep' = {
-  name: 'nestedAcrKubeletAcrPullRole_roleAssignment'
+  name: 'acrKubeletAcrPullRole_roleAssignment'
   scope: resourceGroup('KubernetsDev')
   params: {
     name: guid(mc.id, acrPullRole.id)
