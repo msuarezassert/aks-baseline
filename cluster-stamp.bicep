@@ -771,7 +771,7 @@ resource kv 'Microsoft.KeyVault/vaults@2021-11-01-preview' = {
 // Grant the Azure Application Gateway managed identity with key vault reader role permissions; this allows pulling frontend and backend certificates.
 resource kvMiAppGatewayFrontendSecretsUserRole_roleAssignment 'Microsoft.Authorization/roleAssignments@2020-10-01-preview' = {
   scope: kv
-  name: guid(resourceGroup().id, 'mi-appgateway-frontend', keyVaultSecretsUserRole.id)
+  name: concat('error-here-',guid(resourceGroup().id, 'mi-appgateway-frontend', keyVaultSecretsUserRole.id))
   properties: {
     roleDefinitionId: keyVaultSecretsUserRole.id
     principalId: miAppGatewayFrontend.properties.principalId
