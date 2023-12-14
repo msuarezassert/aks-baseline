@@ -1153,7 +1153,7 @@ resource mc 'Microsoft.ContainerService/managedClusters@2023-02-02-preview' = {
 
 
 module nestedAcrKubeletAcrPullRole_roleAssignment 'nested_AcrKubeletAcrPullRole_roleAssignment.bicep' = {
-  name: 'acrKubeletAcrPullRole_roleAssignment'
+  name: 'nestedAcrKubeletAcrPullRole_roleAssignment'
   scope: resourceGroup('KubernetsDev')
   params: {
     name: guid(mc.id, acrPullRole.id)
@@ -1162,6 +1162,12 @@ module nestedAcrKubeletAcrPullRole_roleAssignment 'nested_AcrKubeletAcrPullRole_
     principalId: mc.properties.identityProfile.kubeletidentity.objectId
     principalType: 'ServicePrincipal'
   }
+}
+
+
+resource acrKubeletAcrPullRole_roleAssignment 'Microsoft.Authorization/roleAssignments@2020-10-01-preview' existing = {
+  name: guid(mc.id, acrPullRole.id)
+  scope: subscription()
 }
 
 // Grant the Azure Monitor (fka as OMS) Agent's Managed Identity the metrics publisher role to push alerts
