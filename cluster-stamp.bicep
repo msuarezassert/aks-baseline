@@ -394,7 +394,7 @@ resource paEnforceImageSource 'Microsoft.Authorization/policyAssignments@2021-06
     parameters: {
       allowedContainerImagesRegex: {
         // If all images are pull into your ARC instance as described in these instructions you can remove the docker.io & ghcr.io entries.
-        value: '${modAcr.acr.name}\\.azurecr\\.io/.+$|mcr\\.microsoft\\.com/.+$|ghcr\\.io/kubereboot/kured.+$|docker\\.io/library/.+$'
+        value: '${modAcr.outputs.acrname}\\.azurecr\\.io/.+$|mcr\\.microsoft\\.com/.+$|ghcr\\.io/kubereboot/kured.+$|docker\\.io/library/.+$'
       }
       excludedNamespaces: {
         value: [
@@ -1151,10 +1151,12 @@ resource mc 'Microsoft.ContainerService/managedClusters@2023-02-02-preview' = {
   ]
 }
 
-resource acrKubeletAcrPullRole_roleAssignment 'Microsoft.Authorization/roleAssignments@2020-10-01-preview' = {
-  scope: modAcr.acr
-  name: guid(mc.id, acrPullRole.id)
-  properties: {
+
+module nestedAcrKubeletAcrPullRole_roleAssignment 'nested_AcrKubeletAcrPullRole_roleAssignment.bicep' = {
+  name: 'nestedAcrKubeletAcrPullRole_roleAssignment'
+  scope: resourceGroup('KubernetsDev')
+  params: {
+    name: guid(mc.id, acrPullRole.id)
     roleDefinitionId: acrPullRole.id
     description: 'Allows AKS to pull container images from this ACR instance.'
     principalId: mc.properties.identityProfile.kubeletidentity.objectId
