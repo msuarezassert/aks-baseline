@@ -4,4 +4,4 @@ resource acr 'Microsoft.ContainerRegistry/registries@2021-12-01-preview' existin
   name: 'ACRDEVEUS2' 
 }
 
-output acr object = acr
+output acr resource = acr
