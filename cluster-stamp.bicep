@@ -132,11 +132,10 @@ resource nodeResourceGroup 'Microsoft.Resources/resourceGroups@2021-04-01' exist
 }
 
  
-resource acr 'Microsoft.ContainerRegistry/registries@2021-12-01-preview' existing = {
-  name: 'ACRDEVEUSasdasdsa2' 
+module modAcr 'nested_EnsureExistingACR.bicep' = {
+  name: 'modAcr'
+  scope: resourceGroup('KubernetsDev')
 }
- 
-
 
 // Built-in Azure RBAC role that is applied to a cluster to indicate they can be considered a user/group of the cluster, subject to additional RBAC permissions
 resource serviceClusterUserRole 'Microsoft.Authorization/roleDefinitions@2018-01-01-preview' existing = {
@@ -395,7 +394,7 @@ resource paEnforceImageSource 'Microsoft.Authorization/policyAssignments@2021-06
     parameters: {
       allowedContainerImagesRegex: {
         // If all images are pull into your ARC instance as described in these instructions you can remove the docker.io & ghcr.io entries.
-        value: '${acr.name}\\.azurecr\\.io/.+$|mcr\\.microsoft\\.com/.+$|ghcr\\.io/kubereboot/kured.+$|docker\\.io/library/.+$'
+        value: '${modAcr.outputs.acr.name}\\.azurecr\\.io/.+$|mcr\\.microsoft\\.com/.+$|ghcr\\.io/kubereboot/kured.+$|docker\\.io/library/.+$'
       }
       excludedNamespaces: {
         value: [
@@ -1153,7 +1152,7 @@ resource mc 'Microsoft.ContainerService/managedClusters@2023-02-02-preview' = {
 }
 
 resource acrKubeletAcrPullRole_roleAssignment 'Microsoft.Authorization/roleAssignments@2020-10-01-preview' = {
-  scope: acr
+  scope: modAcr.outputs.acr
   name: guid(mc.id, acrPullRole.id)
   properties: {
     roleDefinitionId: acrPullRole.id
