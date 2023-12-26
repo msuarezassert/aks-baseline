@@ -771,7 +771,7 @@ resource kv 'Microsoft.KeyVault/vaults@2021-11-01-preview' = {
 // Grant the Azure Application Gateway managed identity with key vault reader role permissions; this allows pulling frontend and backend certificates.
 resource kvMiAppGatewayFrontendSecretsUserRole_roleAssignment 'Microsoft.Authorization/roleAssignments@2020-10-01-preview' = {
   scope: kv
-  name: concat('error-here-',guid(resourceGroup().id, 'mi-appgateway-frontend', keyVaultSecretsUserRole.id))
+  name: guid(resourceGroup().id, 'mi-appgateway-frontend', keyVaultSecretsUserRole.id)
   properties: {
     roleDefinitionId: keyVaultSecretsUserRole.id
     principalId: miAppGatewayFrontend.properties.principalId
@@ -1003,7 +1003,6 @@ resource mc 'Microsoft.ContainerService/managedClusters@2023-02-02-preview' = {
         }
       }
     }
-    nodeResourceGroup: nodeResourceGroup.name
     enableRBAC: true
     enablePodSecurityPolicy: false
     networkProfile: {
@@ -1169,18 +1168,7 @@ resource acrKubeletAcrPullRole_roleAssignment 'Microsoft.Authorization/roleAssig
   name: guid(mc.id, acrPullRole.id)
   scope: subscription()
 }
-
-// Grant the Azure Monitor (fka as OMS) Agent's Managed Identity the metrics publisher role to push alerts
-resource mcAmaAgentMonitoringMetricsPublisherRole_roleAssignment 'Microsoft.Authorization/roleAssignments@2020-10-01-preview' = {
-  scope: mc
-  name: guid(mc.id, 'amagent', monitoringMetricsPublisherRole.id)
-  properties: {
-    roleDefinitionId: monitoringMetricsPublisherRole.id
-    principalId: mc.properties.addonProfiles.omsagent.identity.objectId
-    principalType: 'ServicePrincipal'
-  }
-}
-
+ 
 resource mcAadAdminGroupClusterAdminRole_roleAssignment 'Microsoft.Authorization/roleAssignments@2020-10-01-preview' = if (isUsingAzureRBACasKubernetesRBAC) {
   scope: mc
   name: guid('aad-admin-group', mc.id, clusterAdminAadGroupObjectId)
@@ -1383,7 +1371,7 @@ resource agw 'Microsoft.Network/applicationGateways@2021-05-01' = {
         name: 'apw-frontend-ip-configuration'
         properties: {
           publicIPAddress: {
-            id: resourceId(subscription().subscriptionId, targetResourceGroup.name, 'Microsoft.Network/publicIpAddresses', 'pip-BU0001A0008-00')
+            id: resourceId(subscription().subscriptionId, targetResourceGroup.name, 'Microsoft.Network/publicIpAddresses', 'pip-remitee-core-components-00')
           }
         }
       }
